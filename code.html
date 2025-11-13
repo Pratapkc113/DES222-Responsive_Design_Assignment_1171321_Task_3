@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HeatSafe - Heat-Strain Risk Assistant</title>
+    <meta name="description" content="Context-aware heat-strain risk assistant for Australian conditions">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#F97316">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/feather-icons"></script>
+    <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
+    <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+    <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+    <style>
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .pulse-alert {
+            animation: pulse 2s infinite;
+        }
+        .risk-low { background-color: #3B82F6; }
+        .risk-caution { background-color: #F59E0B; }
+        .risk-high { background-color: #EF4444; }
+        .risk-extreme { background-color: #7C3AED; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-900 min-h-screen flex flex-col">
+    <div id="vanta-bg" class="fixed inset-0 -z-10 opacity-20"></div>
+    
+    <header class="bg-white shadow-sm sticky top-0 z-10">
+        <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center space-x-2">
+                <i data-feather="thermometer" class="text-orange-500"></i>
+                <h1 class="text-xl font-bold text-gray-800">HeatSafe</h1>
+            </div>
+            <nav>
+                <ul class="flex space-x-4">
+                    <li><button id="settings-btn" class="p-1 rounded-full hover:bg-gray-100">
+                        <i data-feather="settings"></i>
+                    </button></li>
+                    <li><button id="info-btn" class="p-1 rounded-full hover:bg-gray-100">
+                        <i data-feather="info"></i>
+                    </button></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <main class="flex-grow container mx-auto px-4 py-8">
+        <div class="max-w-md mx-auto bg-white rounded-xl shadow-md overflow-hidden" data-aos="fade-up">
+            <div class="p-6">
+                <div class="text-center mb-6">
+                    <div class="inline-block p-3 rounded-full bg-gray-100 mb-4">
+                        <i data-feather="sun" class="w-10 h-10 text-orange-500"></i>
+                    </div>
+                    <h2 class="text-2xl font-bold text-gray-800">Current Heat Status</h2>
+                    <p class="text-gray-500">Loading your local conditions...</p>
+                </div>
+
+                <div id="status-card" class="rounded-lg p-4 mb-6 text-white text-center transition-all duration-300">
+                    <div class="text-5xl font-bold mb-2" id="temperature-display">--°C</div>
+                    <div class="text-xl font-semibold mb-1" id="risk-level">Loading...</div>
+                    <div class="text-sm" id="risk-description">Calculating heat strain risk</div>
+                </div>
+
+                <div id="activity-display" class="bg-gray-50 rounded-lg p-4 mb-6">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="font-medium text-gray-700">Activity Level</h3>
+                            <p class="text-sm text-gray-500" id="activity-text">Detecting movement...</p>
+                        </div>
+                        <div class="w-12 h-12 rounded-full flex items-center justify-center bg-orange-100">
+                            <i data-feather="activity" class="text-orange-500"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="alert-container" class="hidden">
+                    <div class="bg-red-50 border-l-4 border-red-500 p-4 mb-6 rounded-r-lg">
+                        <div class="flex items-start">
+                            <div class="flex-shrink-0">
+                                <i data-feather="alert-triangle" class="text-red-500"></i>
+                            </div>
+                            <div class="ml-3">
+                                <h3 class="text-sm font-medium text-red-800" id="alert-title">Heat Alert</h3>
+                                <div class="mt-2 text-sm text-red-700">
+                                    <p id="alert-message"></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <button id="refresh-btn" class="bg-gray-100 hover:bg-gray-200 text-gray-800 py-2 px-4 rounded-lg flex items-center justify-center space-x-2 transition">
+                        <i data-feather="refresh-cw" class="w-4 h-4"></i>
+                        <span>Refresh</span>
+                    </button>
+                    <button id="test-alert-btn" class="bg-orange-100 hover:bg-orange-200 text-orange-800 py-2 px-4 rounded-lg flex items-center justify-center space-x-2 transition">
+                        <i data-feather="bell" class="w-4 h-4"></i>
+                        <span>Test Alert</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="bg-white border-t py-4">
+        <div class="container mx-auto px-4 text-center text-sm text-gray-500">
+            <p>HeatSafe uses on-device processing for your privacy. No personal data is collected.</p>
+        </div>
+    </footer>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4" data-aos="zoom-in">
+            <div class="p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-bold text-gray-800">Settings</h3>
+                    <button id="close-settings" class="text-gray-500 hover:text-gray-700">
+                        <i data-feather="x"></i>
+                    </button>
+                </div>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Temperature Unit</label>
+                        <div class="flex space-x-4">
+                            <label class="inline-flex items-center">
+                                <input type="radio" name="temp-unit" value="celsius" checked class="h-4 w-4 text-orange-600">
+                                <span class="ml-2 text-gray-700">Celsius (°C)</span>
+                            </label>
+                            <label class="inline-flex items-center">
+                                <input type="radio" name="temp-unit" value="fahrenheit" class="h-4 w-4 text-orange-600">
+                                <span class="ml-2 text-gray-700">Fahrenheit (°F)</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Alert Sensitivity</label>
+                        <select class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm rounded-md">
+                            <option>High (Default)</option>
+                            <option>Medium</option>
+                            <option>Low</option>
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <label class="inline-flex items-center">
+                            <input type="checkbox" checked class="h-4 w-4 text-orange-600">
+                            <span class="ml-2 text-gray-700">Enable vibration alerts</span>
+                        </label>
+                    </div>
+                    
+                    <div>
+                        <label class="inline-flex items-center">
+                            <input type="checkbox" class="h-4 w-4 text-orange-600">
+                            <span class="ml-2 text-gray-700">Quiet hours (10pm - 6am)</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="mt-6 pt-4 border-t border-gray-200 flex justify-end space-x-3">
+                    <button id="save-settings" class="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500">
+                        Save Changes
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Info Modal -->
+    <div id="info-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[80vh] overflow-y-auto" data-aos="zoom-in">
+            <div class="p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-bold text-gray-800">About HeatSafe</h3>
+                    <button id="close-info" class="text-gray-500 hover:text-gray-700">
+                        <i data-feather="x"></i>
+                    </button>
+                </div>
+                
+                <div class="prose prose-sm text-gray-700">
+                    <p>HeatSafe helps you manage heat strain risk during Australian heatwaves by combining:</p>
+                    <ul class="list-disc pl-5 space-y-1">
+                        <li>Local weather conditions (temperature, humidity, wind)</li>
+                        <li>Your activity level (from motion sensors)</li>
+                        <li>Time of day and location</li>
+                    </ul>
+                    
+                    <h4 class="font-bold mt-4">How It Works</h4>
+                    <p>HeatSafe calculates <strong>Apparent Temperature</strong> (Steadman, 1984), which better reflects how hot it feels by accounting for:</p>
+                    <div class="bg-gray-50 p-3 rounded-md my-2 text-sm">
+                        AT = T + 0.33e - 0.70w<sub>s</sub> - 4.00
+                    </div>
+                    <p>Where T is air temperature (°C), e is vapour pressure (hPa), and w<sub>s</sub> is wind speed (m/s).</p>
+                    
+                    <h4 class="font-bold mt-4">Risk Levels</h4>
+                    <div class="space-y-2">
+                        <div class="flex items-center">
+                            <div class="w-3 h-3 rounded-full bg-blue-500 mr-2"></div>
+                            <span>&lt; 26°C: Normal conditions</span>
+                        </div>
+                        <div class="flex items-center">
+                            <div class="w-3 h-3 rounded-full bg-yellow-500 mr-2"></div>
+                            <span>26-32°C: Caution (hydrate)</span>
+                        </div>
+                        <div class="flex items-center">
+                            <div class="w-3 h-3 rounded-full bg-red-500 mr-2"></div>
+                            <span>32-38°C: High risk (seek shade)</span>
+                        </div>
+                        <div class="flex items-center">
+                            <div class="w-3 h-3 rounded-full bg-purple-500 mr-2"></div>
+                            <span>&gt; 38°C: Extreme risk (reduce activity)</span>
+                        </div>
+                    </div>
+                    
+                    <h4 class="font-bold mt-4">Privacy</h4>
+                    <p>All calculations happen on your device. We only fetch weather data - no personal information is collected or stored.</p>
+                </div>
+                
+                <div class="mt-6 pt-4 border-t border-gray-200 text-sm text-gray-500">
+                    <p>Based on research by Steadman (1984), Bröde et al. (2012), and others.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/vanta@latest/dist/vanta.globe.min.js"></script>
+    <script>
+        // Initialize animations and icons
+        document.addEventListener('DOMContentLoaded', function() {
+            AOS.init({
+                duration: 600,
+                easing: 'ease-out-quad',
+                once: true
+            });
+            feather.replace();
+            
+            // Vanta.js background
+            VANTA.GLOBE({
+                el: "#vanta-bg",
+                mouseControls: true,
+                touchControls: true,
+                gyroControls: false,
+                minHeight: 200.00,
+                minWidth: 200.00,
+                scale: 1.00,
+                scaleMobile: 1.00,
+                color: 0xff7d33,
+                backgroundColor: 0xf8fafc,
+                size: 0.8
+            });
+            
+            // Modal controls
+            const settingsModal = document.getElementById('settings-modal');
+            const infoModal = document.getElementById('info-modal');
+            
+            document.getElementById('settings-btn').addEventListener('click', () => {
+                settingsModal.classList.remove('hidden');
+            });
+            
+            document.getElementById('info-btn').addEventListener('click', () => {
+                infoModal.classList.remove('hidden');
+            });
+            
+            document.getElementById('close-settings').addEventListener('click', () => {
+                settingsModal.classList.add('hidden');
+            });
+            
+            document.getElementById('close-info').addEventListener('click', () => {
+                infoModal.classList.add('hidden');
+            });
+            
+            // Close modals when clicking outside
+            [settingsModal, infoModal].forEach(modal => {
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal) {
+                        modal.classList.add('hidden');
+                    }
+                });
+            });
+            
+            // Mock data for demo - in a real app this would come from weather APIs and sensors
+            function updateWeatherData() {
+                // Simulate API call delay
+                setTimeout(() => {
+                    const mockTemp = 34 + Math.random() * 4; // 34-38°C
+                    const mockHumidity = 40 + Math.random() * 30; // 40-70%
+                    const mockWind = 1 + Math.random() * 5; // 1-6 m/s
+                    
+                    // Calculate Apparent Temperature
+                    const e = (mockHumidity/100) * 6.105 * Math.exp((17.27 * mockTemp) / (237.7 + mockTemp));
+                    const at = mockTemp + 0.33 * e - 0.70 * mockWind - 4.00;
+                    
+                    // Update display
+                    document.getElementById('temperature-display').textContent = `${at.toFixed(1)}°C`;
+                    
+                    // Determine risk level
+                    let riskLevel, riskDesc, riskClass;
+                    if (at < 26) {
+                        riskLevel = "Low Risk";
+                        riskDesc = "Normal conditions";
+                        riskClass = "risk-low";
+                    } else if (at < 32) {
+                        riskLevel = "Caution";
+                        riskDesc = "Stay hydrated";
+                        riskClass = "risk-caution";
+                    } else if (at < 38) {
+                        riskLevel = "High Risk";
+                        riskDesc = "Seek shade, hydrate frequently";
+                        riskClass = "risk-high";
+                    } else {
+                        riskLevel = "Extreme Risk";
+                        riskDesc = "Reduce activity, cool down immediately";
+                        riskClass = "risk-extreme";
+                    }
+                    
+                    const statusCard = document.getElementById('status-card');
+                    statusCard.className = `rounded-lg p-4 mb-6 text-white text-center transition-all duration-300 ${riskClass}`;
+                    document.getElementById('risk-level').textContent = riskLevel;
+                    document.getElementById('risk-description').textContent = riskDesc;
+                    
+                    // Simulate activity detection
+                    const activities = ["Stationary", "Light activity", "Active"];
+                    const activity = activities[Math.floor(Math.random() * activities.length)];
+                    document.getElementById('activity-text').textContent = activity;
+                    
+                    // Trigger alerts if needed
+                    if (at >= 32 && activity !== "Stationary") {
+                        showAlert("Heat Alert", `Apparent temperature is ${at.toFixed(1)}°C. ${riskDesc}`);
+                    }
+                }, 800);
+            }
+            
+            function showAlert(title, message) {
+                const alertContainer = document.getElementById('alert-container');
+                document.getElementById('alert-title').textContent = title;
+                document.getElementById('alert-message').textContent = message;
+                alertContainer.classList.remove('hidden');
+                
+                // Vibrate if supported (Android)
+                if ('vibrate' in navigator) {
+                    navigator.vibrate([200, 100, 200]);
+                }
+                
+                // Auto-hide after 15 seconds
+                setTimeout(() => {
+                    alertContainer.classList.add('hidden');
+                }, 15000);
+            }
+            
+            // Initial load
+            updateWeatherData();
+            
+            // Refresh button
+            document.getElementById('refresh-btn').addEventListener('click', updateWeatherData);
+            
+            // Test alert button
+            document.getElementById('test-alert-btn').addEventListener('click', () => {
+                showAlert("Test Alert", "This is a test of the HeatSafe alert system.");
+            });
+            
+            // In a real app, we'd also:
+            // 1. Request geolocation permission
+            // 2. Request motion sensor permission (especially for iOS)
+            // 3. Set up periodic weather updates
+            // 4. Implement proper activity detection
+            // 5. Add service worker for PWA functionality
+        });
+    </script>
+</body>
+</html>
